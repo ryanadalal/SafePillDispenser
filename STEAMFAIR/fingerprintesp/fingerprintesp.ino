@@ -1,7 +1,6 @@
 /* Enroll fingerprints */
 
 #include <HardwareSerial.h>
-
 #include <fpm.h>
 
 /*  For ESP32 only, use Hardware UART1:
@@ -40,51 +39,18 @@ void setup()
 
 void loop()
 {
-    Serial.println("\r\nSend any character to enroll a finger...");
-    while (Serial.available() == 0) yield();
+    Serial.println("Please type in the ID # (from 1 or 2) you want to save this finger as...");
     
-    Serial.println("Searching for a free slot to store the template...");
-    
-    int16_t fid;
-    if (getFreeId(&fid)) 
-    {
-        enrollFinger(fid);
+    uint16_t fid = 0;
+
+    while (fid != 1 && fid != 2) {
+      while (! Serial.available());
+      fid = Serial.parseInt();
     }
-    else 
-    {
-        Serial.println("No free slot/ID in database!");
-    }
+
+    enrollFinger(fid);
     
     while (Serial.read() != -1);  // clear buffer
-}
-
-bool getFreeId(int16_t * fid) 
-{
-    for (int page = 0; page < (params.capacity / FPM_TEMPLATES_PER_PAGE) + 1; page++) 
-    {
-        FPMStatus status = finger.getFreeIndex(page, fid);
-        
-        switch (status) 
-        {
-            case FPMStatus::OK:
-                if (*fid != -1) {
-                    Serial.print("Free slot at ID ");
-                    Serial.println(*fid);
-                    return true;
-                }
-                break;
-                
-            default:
-                snprintf(printfBuf, PRINTF_BUF_SZ, "getFreeIndex(%d): error 0x%X", page, static_cast<uint16_t>(status));
-                Serial.println(printfBuf);
-                return false;
-        }
-        
-        yield();
-    }
-    
-    Serial.println("No free slots!");
-    return false;
 }
 
 bool enrollFinger(int16_t fid) 

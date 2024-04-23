@@ -1,8 +1,8 @@
 #include <Wire.h>    
-#include <RTClib.h>                 // for RTC
+#include <RTClib.h>                 // for RTC rtclib is library name
 
 RTC_DS3231 rtc;     
-
+//pins 21 and 22
 /*
    function to update RTC time using user input
 */
