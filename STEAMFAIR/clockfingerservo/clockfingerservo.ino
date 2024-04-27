@@ -3,6 +3,7 @@
 #include <ESP32Servo.h> // esp32servo
 #include <HardwareSerial.h> // esp espressif board
 #include <fpm.h> //FPM github
+#include <WiFi.h>
 
 /*
 clock uses pins 21 and 22
@@ -10,9 +11,27 @@ servo uses pin 18
 finger print uses pins 25 TX, 32 RX
 */
 
+// Replace with your network credentials
+const char* ssid = "Tumba_2G";
+const char* password = "Dalal123";
+// Set web server port number to 80
+WiFiServer server(80);
+// Variable to store the HTTP request
+String header;
+//client
+WiFiClient client;
+// timings used to check for disconnections
+unsigned long currentTime = millis();
+unsigned long previousTime = 0; 
+const long timeoutTime = 2000;
+
 RTC_DS3231 rtc;  
 
 Servo servoTop;
+int servoTopPosition = 0;
+
+const int checkFingerButtonPin = 2;
+int checkFingerButtonState = 0;
 
 HardwareSerial fserial(1);
 FPM finger(&fserial);
@@ -28,6 +47,23 @@ void setup()
 
   rtc.begin();   
   servoTop.attach(18);    
+
+  pinMode(checkFingerButtonPin, INPUT);
+
+  // Connect to Wi-Fi network with SSID and password
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  // Print local IP address and start web server
+  Serial.println("");
+  Serial.println("WiFi connected.");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+  server.begin();
 
   fserial.begin(57600, SERIAL_8N1, 25, 32);
 
@@ -46,29 +82,118 @@ void setup()
 void loop()
 {
   DateTime rtcTime = rtc.now();
-  Serial.print(rtcTime.hour()); 
-  Serial.print( " : ");
-  Serial.print( rtcTime.minute());
-  Serial.print( " : ");
-  Serial.println( rtcTime.second());
 
-  //servoTop.write(180);
-
-  Serial.println("Please type in the ID # (from 1 or 2) you want to save this finger as..."); 
-  uint16_t fid = 0;
-  while (fid != 1 && fid != 2) {
-    while (! Serial.available());
-    fid = Serial.parseInt();
+  checkFingerButtonState = digitalRead(checkFingerButtonPin);
+  if(checkFingerButtonState == 1){
+    searchDatabase();
+    while (Serial.read() != -1);
   }
-  enrollFinger(fid); 
-  while (Serial.read() != -1);  // clears buffer
 
-  searchDatabase();
-  while (Serial.read() != -1); // clears buffer
+  client = server.available();   // Listen for incoming clients
+  if (client) {                             // If a new client connects,
+    currentTime = millis();
+    previousTime = currentTime;
+    Serial.println("New Client Connected.");          // print a message out in the serial port
+    String currentLine = "";                // make a String to hold incoming data from the client
+    while (client.connected() && currentTime - previousTime <= timeoutTime) {  // loop while the client's connected
+      currentTime = millis();
+      if (client.available()) {             // if there's bytes to read from the client,
+        char c = client.read();             // read a byte, then
+        Serial.write(c);                    // print it out the serial monitor
+        header += c;
+        if (c == '\n') {                    // if the byte is a newline character
+          // if the current line is blank, you got two newline characters in a row.
+          // that's the end of the client HTTP request, so send a response:
+          if (currentLine.length() == 0) {
+            // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+            // and a content-type so the client knows what's coming, then a blank line:
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-type:text/html");
+            client.println("Connection: close");
+            client.println();
+            // Display the HTML web page
+            client.println("<!DOCTYPE html><html>");
+            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            client.println("<link rel=\"icon\" href=\"data:,\">");
+            // CSS to style the on/off buttons 
+            // Feel free to change the background-color and font-size attributes to fit your preferences
+            client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+            client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
+            client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+            client.println(".button2 {background-color: #555555;}</style></head>");
+
+            // get request handling
+            if (header.indexOf("GET /finger/resetparent") >= 0) {
+              Serial.println("Reseting Parent Finger");
+              enrollFinger(1);
+            } else if (header.indexOf("GET /finger/resetchild") >= 0) {
+              Serial.println("Reseting Child Finger");
+              enrollFinger(2);
+            } else {
+              if (header.indexOf("GET /refill/clock") >= 0) {
+                Serial.println("Rotating by one slot");
+                rotate();
+              }
+
+
+              // Web Page Heading
+              client.println("<body><h1>Safe Pills</h1>");
+              
+              // button options  
+              client.println("<h2>Reset finger prints</h2>");   
+              client.println("<p><a href=\"/finger/resetparent\"><button class=\"button\">Reset Parent Finger</button></a></p>");
+              client.println("<p><a href=\"/finger/resetchild\"><button class=\"button\">Reset Child Finger</button></a></p>");
+
+              client.println("<h2>Refill</h2>");   
+              client.println("<p><a href=\"/refill/clock\"><button class=\"button\">Refill (rotates one slot over) </button></a></p>");
+            }
+            client.println("</body></html>");
+            
+            // The HTTP response ends with another blank line
+            client.println();
+            // Break out of the while loop
+            break;
+          } else { // if you got a newline, then clear currentLine
+            currentLine = "";
+          }
+        } else if (c != '\r') {  // if you got anything else but a carriage return character,
+          currentLine += c;      // add it to the end of the currentLine
+        }
+      }
+    }
+    // Clear the header variable
+    header = "";
+    // Close the connection
+    client.stop();
+    Serial.println("Client disconnected.");
+    Serial.println("");
+  }
+}
+
+void rotate(){
+  servoTop.writeMicroseconds(2000);
+  delay(500);
+  servoTop.writeMicroseconds(1500);
+  servoTopPosition += 1;
+  if (servoTopPosition == 8){
+    servoTopPosition = 0;
+  }
+}
+
+void refillCapsules(int day){
+  client.println("<body><h1>Capsule Refills</h1>");
+  client.println("<p>Click the button to rotate the device by one day, and when you are done after returning the device to the empty slot click done</p>");
+  //to deal with uncertainty have a recaliibration button and count the number of changes to the dial
 }
 
 bool enrollFinger(int16_t fid) 
 {
+    client.println("<body><h1>Enrolling Finger</h1>");
+    if(fid == 1){
+      client.println("<p>This is for the parents</p>");
+    } else if(fid == 2){
+      client.println("<p>This is for the child</p>");
+    }
     FPMStatus status;
     const int NUM_SNAPSHOTS = 2;
     
@@ -81,6 +206,7 @@ bool enrollFinger(int16_t fid)
     for (int i = 0; i < NUM_SNAPSHOTS; i++)
     {
         Serial.println(i == 0 ? "Place a finger" : "Place same finger again");
+        client.println(i == 0 ? "<p>Place a finger</p>" : "<p>Place same finger again</p>");
         
         do {
 #if defined(FPM_LED_CONTROL_ENABLED)
@@ -93,10 +219,11 @@ bool enrollFinger(int16_t fid)
             {
                 case FPMStatus::OK:
                     Serial.println("Image taken");
+                    client.println("<p>Image taken</p>");
                     break;
                     
                 case FPMStatus::NOFINGER:
-                    Serial.println(".");
+                    Serial.print(".");
                     break;
                     
                 default:
@@ -116,15 +243,19 @@ bool enrollFinger(int16_t fid)
         {
             case FPMStatus::OK:
                 Serial.println("Image converted");
+                client.println("<p>Image Converted</p>");
                 break;
                 
             default:
                 snprintf(printfBuf, PRINTF_BUF_SZ, "image2Tz(%d): error 0x%X", i+1, static_cast<uint16_t>(status));
                 Serial.println(printfBuf);
+                client.println("<p>Error! Please try again later</p>");
+                client.println("<p><a href=\"/\"><button class=\"button\">Return home</button></a></p>");
                 return false;
         }
 
         Serial.println("Remove finger");
+        client.println("<p>Remove finger</p>");
         delay(1000);
         do {
 #if defined(FPM_LED_CONTROL_ENABLED)
@@ -150,15 +281,20 @@ bool enrollFinger(int16_t fid)
     {
         case FPMStatus::OK:
             Serial.println("Template created from matching prints!");
+            client.println("<p>Template Created from matching prints!</p>");
             break;
             
         case FPMStatus::ENROLLMISMATCH:
             Serial.println("The prints do not match!");
+            client.println("<p>The prints do not match, try again later!</p>");
+            client.println("<p><a href=\"/\"><button class=\"button\">Return home</button></a></p>");
             return false;
             
         default:
             snprintf(printfBuf, PRINTF_BUF_SZ, "createModel(): error 0x%X", static_cast<uint16_t>(status));
             Serial.println(printfBuf);
+            client.println("<p>Error! Please try again later</p>");
+            client.println("<p><a href=\"/\"><button class=\"button\">Return home</button></a></p>");
             return false;
     }
     
@@ -168,19 +304,24 @@ bool enrollFinger(int16_t fid)
         case FPMStatus::OK:
             snprintf(printfBuf, PRINTF_BUF_SZ, "Template stored at ID %d!", fid);
             Serial.println(printfBuf);
+            client.println("<p>Fingerprint successfully stored</p>");
             break;
             
         case FPMStatus::BADLOCATION:
             snprintf(printfBuf, PRINTF_BUF_SZ, "Could not store in that location %d!", fid);
             Serial.println(printfBuf);
+            client.println("<p>Error! Please try again later</p>");
+            client.println("<p><a href=\"/\"><button class=\"button\">Return home</button></a></p>");
             return false;
             
         default:
             snprintf(printfBuf, PRINTF_BUF_SZ, "storeModel(): error 0x%X", static_cast<uint16_t>(status));
             Serial.println(printfBuf);
+            client.println("<p>Error! Please try again later</p>");
+            client.println("<p><a href=\"/\"><button class=\"button\">Return home</button></a></p>");
             return false;
     }
-    
+    client.println("<p><a href=\"/\"><button class=\"button\">Return home</button></a></p>");
     return true;
 }
 
@@ -242,6 +383,7 @@ bool searchDatabase(void)
         case FPMStatus::OK:
             snprintf(printfBuf, PRINTF_BUF_SZ, "Found a match at ID #%u with confidence %u", fid, score);
             Serial.println(printfBuf);
+            Serial.println((fid == 1) ? "parents" : "child");
             break;
             
         case FPMStatus::NOTFOUND:
