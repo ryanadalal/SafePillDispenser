@@ -4,6 +4,7 @@
 #include <HardwareSerial.h> // esp espressif board
 #include <fpm.h> //FPM github
 #include <WiFi.h>
+#include <ToneESP32.h> // toneesp32
 
 /*
 clock uses pins 21 and 22
@@ -33,6 +34,8 @@ int servoTopPosition = 0;
 const int checkFingerButtonPin = 2;
 int checkFingerButtonState = 0;
 
+ToneESP32 buzzer(13, 5);
+
 HardwareSerial fserial(1);
 FPM finger(&fserial);
 FPMSystemParams params;
@@ -45,8 +48,10 @@ void setup()
   Serial.begin(57600);
   Serial.println("Fingerprint, clock, and servo");
 
-  rtc.begin();   
-  servoTop.attach(18);    
+  rtc.begin(); 
+  Serial.println(getDateString());
+
+  servoTop.attach(15);    
 
   pinMode(checkFingerButtonPin, INPUT);
 
@@ -85,7 +90,24 @@ void loop()
 
   checkFingerButtonState = digitalRead(checkFingerButtonPin);
   if(checkFingerButtonState == 1){
-    searchDatabase();
+    int searchFinger = searchDatabase();
+    if (searchFinger != 0){
+      buzzer.tone(NOTE_E7, 120);
+      buzzer.tone(NOTE_E7, 120);
+      delay(120);  
+      buzzer.tone(NOTE_E7, 120);
+      delay(120);  
+      buzzer.tone(NOTE_C7, 120);
+      buzzer.tone(NOTE_E7, 120);
+      checkAndRotate(searchFinger);
+    } else{ 
+      buzzer.tone(NOTE_CS6, 62);
+      buzzer.tone(NOTE_CS7, 62);
+      buzzer.tone(NOTE_C7, 375);
+      buzzer.tone(NOTE_GS6, 62);
+      buzzer.tone(NOTE_FS6, 62);
+      buzzer.tone(NOTE_GS6, 375);
+    }
     while (Serial.read() != -1);
   }
 
@@ -139,6 +161,11 @@ void loop()
               // Web Page Heading
               client.println("<body><h1>Safe Pills</h1>");
               
+              //time
+              client.print("<p>");
+              client.print(getDateString());
+              client.println("</p>");
+
               // button options  
               client.println("<h2>Reset finger prints</h2>");   
               client.println("<p><a href=\"/finger/resetparent\"><button class=\"button\">Reset Parent Finger</button></a></p>");
@@ -167,16 +194,98 @@ void loop()
     client.stop();
     Serial.println("Client disconnected.");
     Serial.println("");
+  }else{
+    DateTime rtcTime = rtc.now();
+    int dow =  rtcTime.dayOfTheWeek();
+    if (dow == servoTopPosition){
+      if(rtcTime.twelveHour() > 10){
+        buzzer.tone(NOTE_A4, 500);
+        buzzer.tone(NOTE_A4, 500);    
+        buzzer.tone(NOTE_A4, 500);
+        buzzer.tone(NOTE_F4, 350);
+        buzzer.tone(NOTE_C5, 150);  
+        buzzer.tone(NOTE_A4, 500);
+        buzzer.tone(NOTE_F4, 350);
+        buzzer.tone(NOTE_C5, 150);
+        buzzer.tone(NOTE_A4, 650); 
+        delay(500); 
+        buzzer.tone(NOTE_E5, 500);
+        buzzer.tone(NOTE_E5, 500);
+        buzzer.tone(NOTE_E5, 500);  
+        buzzer.tone(NOTE_F5, 350);
+        buzzer.tone(NOTE_C5, 150);
+        buzzer.tone(NOTE_GS4, 500);
+        buzzer.tone(NOTE_F4, 350);
+        buzzer.tone(NOTE_C5, 150);
+        buzzer.tone(NOTE_A4, 650);
+      }
+    }
   }
+}
+
+String getDateString(){
+  DateTime rtcTime = rtc.now();
+  String result = "Current Date Time: ";
+  result += rtcTime.month();
+  result += '/';
+  result += rtcTime.day();
+  result += '/';
+  result += rtcTime.year();
+  result += " ";
+  int dow =  rtcTime.dayOfTheWeek();
+  switch(dow){
+    case 0:
+      result += "Sunday";
+      break;
+    case 1:
+      result += "Monday";
+      break;
+    case 2:
+      result += "Tuesday";
+      break;
+    case 3:
+      result += "Wednesday";
+      break;
+    case 4:
+      result += "Thursday";
+      break;
+    case 5:
+      result += "Friday";
+      break;
+    case 6:
+      result += "Saturday";
+      break;
+  }
+  result += " ";
+  result += rtcTime.hour();
+  result += ':';
+  result += rtcTime.minute();
+  result += ':';
+  result += rtcTime.second();
+  return result;
 }
 
 void rotate(){
   servoTop.writeMicroseconds(2000);
-  delay(500);
+  delay(200);
   servoTop.writeMicroseconds(1500);
   servoTopPosition += 1;
   if (servoTopPosition == 8){
     servoTopPosition = 0;
+  }
+}
+
+void checkAndRotate(int id){
+  if(id == 1){
+    rotate();
+  } else if(id == 2){
+    DateTime rtcTime = rtc.now();
+    int dow =  rtcTime.dayOfTheWeek();
+    if (dow == servoTopPosition){
+      if((rtcTime.twelveHour() > 6 && rtcTime.twelveHour() < 10)){
+        rotate();
+      }
+    }
   }
 }
 
@@ -328,7 +437,7 @@ bool enrollFinger(int16_t fid)
 //
 // FIND IF THIS FINGER IS A MATCH TO ONE IN THE DATABASE
 //
-bool searchDatabase(void) 
+int searchDatabase(void) 
 {
     FPMStatus status;
     
@@ -388,12 +497,12 @@ bool searchDatabase(void)
             
         case FPMStatus::NOTFOUND:
             Serial.println("Did not find a match.");
-            return false;
+            return 0;
             
         default:
             snprintf(printfBuf, PRINTF_BUF_SZ, "searchDatabase(): error 0x%X", static_cast<uint16_t>(status));
             Serial.println(printfBuf);
-            return false;
+            return 0;
     }
     
     /* Now wait for the finger to be removed, though not necessary. 
@@ -407,5 +516,5 @@ bool searchDatabase(void)
     }
     while (status != FPMStatus::NOFINGER);
     
-    return true;
+    return fid;
 }

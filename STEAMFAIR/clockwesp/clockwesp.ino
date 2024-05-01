@@ -10,15 +10,16 @@ void updateRTC()
 {
 
   // ask user to enter new date and time
-  const char txt[3][15] = {"hours [0~23]", "minutes [0~59]", "seconds [0~59]"};
+  const char txt[6][15] = { "year [4-digit]", "month [1~12]", "day [1~31]",
+                            "hours [0~23]", "minutes [0~59]", "seconds [0~59]"};
   String str = "";
-  long newDate[3];
+  long newDate[6];
 
   while (Serial.available()) {
     Serial.read();  // clear serial buffer
   }
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 6; i++) {
 
     Serial.print("Enter ");
     Serial.print(txt[i]);
@@ -35,7 +36,7 @@ void updateRTC()
   }
 
   // update RTC
-  rtc.adjust(DateTime(1,1,1,newDate[0], newDate[1], newDate[2]));
+  rtc.adjust(DateTime(newDate[0], newDate[1], newDate[2], newDate[3], newDate[4], newDate[5]));
   Serial.println("RTC Updated!");
 }
 
@@ -51,12 +52,21 @@ void loop()
   if(Serial.available()){
     char input = Serial.read();
     if(input == 't'){
-      DateTime rtcTime = rtc.now();
-      Serial.print(rtcTime.hour()); 
-      Serial.print( " : ");
-      Serial.print( rtcTime.minute());
-      Serial.print( " : ");
-      Serial.println( rtcTime.second());
+      DateTime current = rtc.now();
+      Serial.print("Current Date Time: ");
+      Serial.print(current.year(), DEC);
+      Serial.print('/');
+      Serial.print(current.month(), DEC);
+      Serial.print('/');
+      Serial.print(current.day(), DEC);
+      Serial.print(" (");
+      Serial.print(current.dayOfTheWeek());
+      Serial.print(") ");
+      Serial.print(current.hour(), DEC);
+      Serial.print(':');
+      Serial.print(current.minute(), DEC);
+      Serial.print(':');
+      Serial.println(current.second(), DEC);
     }
     else if (input == 'u') updateRTC();  // update RTC time
   }
