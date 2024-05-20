@@ -8,8 +8,10 @@
 
 /*
 clock uses pins 21 and 22
-servo uses pin 18
+servo uses pin 15 and 0
 finger print uses pins 25 TX, 32 RX
+speaker red uses pin 13
+button is pin 2 
 */
 
 // Replace with your network credentials
@@ -29,7 +31,9 @@ const long timeoutTime = 2000;
 RTC_DS3231 rtc;  
 
 Servo servoTop;
-int servoTopPosition = 0;
+Servo servoBottom;
+int servoTopPosition = -1;
+int servoBottomPosition = -1;
 
 const int checkFingerButtonPin = 2;
 int checkFingerButtonState = 0;
@@ -51,7 +55,8 @@ void setup()
   rtc.begin(); 
   Serial.println(getDateString());
 
-  servoTop.attach(15);    
+  servoTop.attach(15);
+  servoBottom.attach(0);   
 
   pinMode(checkFingerButtonPin, INPUT);
 
@@ -88,27 +93,33 @@ void loop()
 {
   DateTime rtcTime = rtc.now();
 
-  checkFingerButtonState = digitalRead(checkFingerButtonPin);
-  if(checkFingerButtonState == 1){
-    int searchFinger = searchDatabase();
-    if (searchFinger != 0){
-      buzzer.tone(NOTE_E7, 120);
-      buzzer.tone(NOTE_E7, 120);
-      delay(120);  
-      buzzer.tone(NOTE_E7, 120);
-      delay(120);  
-      buzzer.tone(NOTE_C7, 120);
-      buzzer.tone(NOTE_E7, 120);
-      checkAndRotate(searchFinger);
-    } else{ 
-      buzzer.tone(NOTE_CS6, 62);
-      buzzer.tone(NOTE_CS7, 62);
-      buzzer.tone(NOTE_C7, 375);
-      buzzer.tone(NOTE_GS6, 62);
-      buzzer.tone(NOTE_FS6, 62);
-      buzzer.tone(NOTE_GS6, 375);
+  if(servoBottomPosition == -1 || servoTopPosition == -1){
+    buzzer.tone(NOTE_FS7, 250);
+    buzzer.tone(NOTE_C7, 250);
+  }
+  else{
+    checkFingerButtonState = digitalRead(checkFingerButtonPin);
+    if(checkFingerButtonState == 1){
+      int searchFinger = searchDatabase();
+      if (searchFinger != 0){
+        buzzer.tone(NOTE_E7, 120);
+        buzzer.tone(NOTE_E7, 120);
+        delay(120);  
+        buzzer.tone(NOTE_E7, 120);
+        delay(120);  
+        buzzer.tone(NOTE_C7, 120);
+        buzzer.tone(NOTE_E7, 120);
+        checkAndRotate(searchFinger);
+      } else{ 
+        buzzer.tone(NOTE_CS6, 62);
+        buzzer.tone(NOTE_CS7, 62);
+        buzzer.tone(NOTE_C7, 375);
+        buzzer.tone(NOTE_GS6, 62);
+        buzzer.tone(NOTE_FS6, 62);
+        buzzer.tone(NOTE_GS6, 375);
+      }
+      while (Serial.read() != -1);
     }
-    while (Serial.read() != -1);
   }
 
   client = server.available();   // Listen for incoming clients
@@ -145,16 +156,49 @@ void loop()
             client.println(".button2 {background-color: #555555;}</style></head>");
 
             // get request handling
-            if (header.indexOf("GET /finger/resetparent") >= 0) {
+            if (header.indexOf("GET /calibrate/done") >= 0) {
+                Serial.println("Done Calibrating");
+                servoTopPosition = 0;
+                servoBottomPosition = 0;
+            }
+            if (servoTopPosition == -1 || servoBottomPosition == -1){
+
+              if (header.indexOf("GET /calibrate/top") >= 0) {
+                Serial.println("Rotating top by one slot");
+                rotateTop(false);
+              }
+              if (header.indexOf("GET /calibrate/bottom") >= 0) {
+                Serial.println("Rotating bottom by one slot");
+                rotateBottom(false);
+              }
+
+              // Web Page Heading
+              client.println("<body><h1>Recalibration Needed!</h1>");
+              
+              //time
+              client.print("<p>");
+              client.print(getDateString());
+              client.println("</p>");
+
+              client.println("<h2>Please rotate each capsule until the blank day is visible, when you are finished select -Done Calibrating-</h2>");   
+
+              client.println("<p><a href=\"/calibrate/top\"><button class=\"button\">Rotate Top (rotates one slot over) </button></a></p>");   
+              client.println("<p><a href=\"/calibrate/bottom\"><button class=\"button\">Rotate Bottom (rotates one slot over) </button></a></p>");
+              client.println("<p><a href=\"/calibrate/done\"><button class=\"button\">Done Calibrating</button></a></p>");
+            } else if (header.indexOf("GET /finger/resetparent") >= 0) {
               Serial.println("Reseting Parent Finger");
               enrollFinger(1);
             } else if (header.indexOf("GET /finger/resetchild") >= 0) {
               Serial.println("Reseting Child Finger");
               enrollFinger(2);
             } else {
-              if (header.indexOf("GET /refill/clock") >= 0) {
-                Serial.println("Rotating by one slot");
-                rotate();
+              if (header.indexOf("GET /refill/top") >= 0) {
+                Serial.println("Rotating top by one slot");
+                rotateTop(true);
+              }
+              if (header.indexOf("GET /refill/bottom") >= 0) {
+                Serial.println("Rotating bottom by one slot");
+                rotateBottom(true);
               }
 
 
@@ -172,7 +216,8 @@ void loop()
               client.println("<p><a href=\"/finger/resetchild\"><button class=\"button\">Reset Child Finger</button></a></p>");
 
               client.println("<h2>Refill</h2>");   
-              client.println("<p><a href=\"/refill/clock\"><button class=\"button\">Refill (rotates one slot over) </button></a></p>");
+              client.println("<p><a href=\"/refill/top\"><button class=\"button\">Refill Top (rotates one slot over) </button></a></p>");   
+              client.println("<p><a href=\"/refill/bottom\"><button class=\"button\">Refill Bottom (rotates one slot over) </button></a></p>");
             }
             client.println("</body></html>");
             
@@ -195,30 +240,29 @@ void loop()
     Serial.println("Client disconnected.");
     Serial.println("");
   }else{
+    //play a tune if the pill was forgotten
     DateTime rtcTime = rtc.now();
     int dow =  rtcTime.dayOfTheWeek();
-    if (dow == servoTopPosition){
-      if(rtcTime.twelveHour() > 10){
-        buzzer.tone(NOTE_A4, 500);
-        buzzer.tone(NOTE_A4, 500);    
-        buzzer.tone(NOTE_A4, 500);
-        buzzer.tone(NOTE_F4, 350);
-        buzzer.tone(NOTE_C5, 150);  
-        buzzer.tone(NOTE_A4, 500);
-        buzzer.tone(NOTE_F4, 350);
-        buzzer.tone(NOTE_C5, 150);
-        buzzer.tone(NOTE_A4, 650); 
-        delay(500); 
-        buzzer.tone(NOTE_E5, 500);
-        buzzer.tone(NOTE_E5, 500);
-        buzzer.tone(NOTE_E5, 500);  
-        buzzer.tone(NOTE_F5, 350);
-        buzzer.tone(NOTE_C5, 150);
-        buzzer.tone(NOTE_GS4, 500);
-        buzzer.tone(NOTE_F4, 350);
-        buzzer.tone(NOTE_C5, 150);
-        buzzer.tone(NOTE_A4, 650);
-      }
+    if (dow == servoTopPosition && rtcTime.hour() > 10 || dow == servoBottomPosition && rtcTime.hour() > 22){
+      buzzer.tone(NOTE_A4, 500);
+      buzzer.tone(NOTE_A4, 500);    
+      buzzer.tone(NOTE_A4, 500);
+      buzzer.tone(NOTE_F4, 350);
+      buzzer.tone(NOTE_C5, 150);  
+      buzzer.tone(NOTE_A4, 500);
+      buzzer.tone(NOTE_F4, 350);
+      buzzer.tone(NOTE_C5, 150);
+      buzzer.tone(NOTE_A4, 650); 
+      delay(500); 
+      buzzer.tone(NOTE_E5, 500);
+      buzzer.tone(NOTE_E5, 500);
+      buzzer.tone(NOTE_E5, 500);  
+      buzzer.tone(NOTE_F5, 350);
+      buzzer.tone(NOTE_C5, 150);
+      buzzer.tone(NOTE_GS4, 500);
+      buzzer.tone(NOTE_F4, 350);
+      buzzer.tone(NOTE_C5, 150);
+      buzzer.tone(NOTE_A4, 650);
     }
   }
 }
@@ -265,25 +309,67 @@ String getDateString(){
   return result;
 }
 
-void rotate(){
+void rotateTop(bool changePosition){
   servoTop.writeMicroseconds(2000);
   delay(200);
   servoTop.writeMicroseconds(1500);
-  servoTopPosition += 1;
+  if(changePosition){
+    servoTopPosition += 1;
+  }
   if (servoTopPosition == 8){
     servoTopPosition = 0;
+  }
+}
+void rotateBottom(bool changePosition){
+  servoBottom.writeMicroseconds(2000);
+  delay(200);
+  servoBottom.writeMicroseconds(1500);
+  if(changePosition){
+    servoBottomPosition += 1;
+  }
+  if (servoBottomPosition == 8){
+    servoBottomPosition = 0;
   }
 }
 
 void checkAndRotate(int id){
   if(id == 1){
-    rotate();
+    //rotate();
+    /*
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    fix
+    */
+    //TODO
   } else if(id == 2){
     DateTime rtcTime = rtc.now();
     int dow =  rtcTime.dayOfTheWeek();
     if (dow == servoTopPosition){
-      if((rtcTime.twelveHour() > 6 && rtcTime.twelveHour() < 10)){
-        rotate();
+      if((rtcTime.hour() > 6 && rtcTime.hour() < 10)){
+        rotateTop(true);
+      }
+    }
+    if (dow == servoBottomPosition){
+      if((rtcTime.hour() > 18 && rtcTime.hour() < 22)){
+        rotateBottom(true);
       }
     }
   }
