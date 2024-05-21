@@ -56,7 +56,7 @@ void setup()
   Serial.println(getDateString());
 
   servoTop.attach(15);
-  servoBottom.attach(0);   
+  servoBottom.attach(12);   
 
   pinMode(checkFingerButtonPin, INPUT);
 
@@ -310,8 +310,8 @@ String getDateString(){
 }
 
 void rotateTop(bool changePosition){
-  servoTop.writeMicroseconds(2000);
-  delay(200);
+  servoTop.writeMicroseconds(1600);
+  delay(120);
   servoTop.writeMicroseconds(1500);
   if(changePosition){
     servoTopPosition += 1;
@@ -321,7 +321,7 @@ void rotateTop(bool changePosition){
   }
 }
 void rotateBottom(bool changePosition){
-  servoBottom.writeMicroseconds(2000);
+  servoBottom.writeMicroseconds(1600);
   delay(200);
   servoBottom.writeMicroseconds(1500);
   if(changePosition){
