@@ -1,8 +1,11 @@
 # Pill Safety Device
 
+A device to ensure that pills are taken responsibily and safley
+
 ## Features
 - Fingerprint reader to ensure no unauthorized access
 - Timers and clocks prevent pills from being taken too early or too late
+- A buzzer to alert users if they miss a pill and provide audible feedback
 - Wifi connection to a custom website that allows managers to 
   1. Calibrate the device
   2. Manually override the fingerprint sensor and timing locks
@@ -35,7 +38,7 @@ The code can be found in main/main.ino
 
 The finger print module uses code and the library from this repo - https://github.com/brianrho/FPM
 
-###### The remaining libraries used in this project are
+The remaining libraries used in this project are
 - rtclib - real time clock module connections
 - esp32servo - allows the esp32 board to connect to standard arduino servers
 - wifi
