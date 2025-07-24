@@ -7,6 +7,10 @@ Features
   b. Manually override the fingerprint sensor and timing locks
   c. Reload the device with a new week of pills
   d. Reset both the parent and child fingerprints
+- A button to enable finger print reads that then starts a process which
+  a. Checks if the print is valid
+  b. Rotates the corret chamber and overrides time locks if the print is the parent's
+  c. Checks if the time for the pill is right and rotates the chamber to allow the child to take the pill
 
 # Application
 This device could be used to allow older children to take their own pills without strict supervision since the device ensures they can not take too many pills or take them at the wrong time
@@ -27,6 +31,17 @@ Additionally instead of a parent and a child this device could be used by an eld
 
 ## Code 
 The code can be found in main/main.ino
+
+The finger print module uses code and the library from this repo - https://github.com/brianrho/FPM
+
+#### The remaining libraries used in this project are
+- rtclib - real time clock module connections
+- esp32servo - allows the esp32 board to connect to standard arduino servers
+- wifi
+- toneesp32 - enables arduino buzzers to work with the esp32
+- esp32 espressif board module - allows hardware serial connections to work
+
+Upon start the device listens for http request and then sends the website piece by piece to the client over an http request. This strucutre was used to allow more versatility in the pages being displayed while also simplifying the code and avoiding the need to create entirley new html files for each webpage. Under normal operation the webserver is unused so the device was programmed to prefer user finger print request initiated by the button press.
 
 ## Photos
 
