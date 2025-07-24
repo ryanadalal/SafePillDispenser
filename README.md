@@ -1,5 +1,6 @@
 # Pill Safety Device
-Features
+
+## Features
 - Fingerprint reader to ensure no unauthorized access
 - Timers and clocks prevent pills from being taken too early or too late
 - Wifi connection to a custom website that allows managers to 
@@ -12,12 +13,12 @@ Features
   2. Rotates the corret chamber and overrides time locks if the print is the parent's
   3. Checks if the time for the pill is right and rotates the chamber to allow the child to take the pill
 
-# Application
+## Application
 This device could be used to allow older children to take their own pills without strict supervision since the device ensures they can not take too many pills or take them at the wrong time
 Additionally instead of a parent and a child this device could be used by an elderly person and their caretaker.
 
-# Design
-## Materials
+## Design
+#### Materials
 - esp32
 - servo motors 2x
 - 3d printed container and parts (found in cadfiles folder)
@@ -26,15 +27,15 @@ Additionally instead of a parent and a child this device could be used by an eld
 - push button and pull down resistor
 - R30x finger print module
 
-## Schematic
+#### Schematic
 <img width="100%" src="./schematic.png" alt="schematic image" />
 
-## Code 
+#### Code 
 The code can be found in main/main.ino
 
 The finger print module uses code and the library from this repo - https://github.com/brianrho/FPM
 
-#### The remaining libraries used in this project are
+###### The remaining libraries used in this project are
 - rtclib - real time clock module connections
 - esp32servo - allows the esp32 board to connect to standard arduino servers
 - wifi
