@@ -3,14 +3,14 @@ Features
 - Fingerprint reader to ensure no unauthorized access
 - Timers and clocks prevent pills from being taken too early or too late
 - Wifi connection to a custom website that allows managers to 
-  a. Calibrate the device
-  b. Manually override the fingerprint sensor and timing locks
-  c. Reload the device with a new week of pills
+  1. Calibrate the device
+  2. Manually override the fingerprint sensor and timing locks
+  3. Reload the device with a new week of pills
   d. Reset both the parent and child fingerprints
 - A button to enable finger print reads that then starts a process which
-  a. Checks if the print is valid
-  b. Rotates the corret chamber and overrides time locks if the print is the parent's
-  c. Checks if the time for the pill is right and rotates the chamber to allow the child to take the pill
+  1. Checks if the print is valid
+  2. Rotates the corret chamber and overrides time locks if the print is the parent's
+  3. Checks if the time for the pill is right and rotates the chamber to allow the child to take the pill
 
 # Application
 This device could be used to allow older children to take their own pills without strict supervision since the device ensures they can not take too many pills or take them at the wrong time
