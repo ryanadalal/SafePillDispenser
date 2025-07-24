@@ -23,7 +23,18 @@ Additionally instead of a parent and a child this device could be used by an eld
 - R30x finger print module
 
 ## Schematic
-<img width="80px" src="./schematic.png" alt="schematic image" />
+<img width="100%" src="./schematic.png" alt="schematic image" />
 
 ## Code 
 The code can be found in main/main.ino
+
+## Photos
+
+### Preassembly final assembly all parts
+<img width="100%" src="./completeddevicepreassembley.jpeg" alt="schematic image" />
+
+### Rotation chamber with attached finger print sensor
+<img width="100%" src="./rotatorandfingerprint.jpeg" alt="schematic image" />
+
+### Sweeper inside the rotation chamber
+<img width="100%" src="./sweeper.jpeg" alt="schematic image" />
